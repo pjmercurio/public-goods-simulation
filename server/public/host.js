@@ -12,13 +12,13 @@ const endBtn = document.getElementById('end-btn');
 
 // Build join URL from current origin
 const joinUrl = `${location.origin}/join.html`;
-joinUrlEl.textContent = joinUrl;
+//joinUrlEl.textContent = joinUrl;
 
 // QR code
 new QRCode(document.getElementById("qr"), {
   text: joinUrl,
-  width: 180,
-  height: 180
+  width: 250,
+  height: 250
 });
 
 startBtn.addEventListener('click', () => socket.emit('host:start'));

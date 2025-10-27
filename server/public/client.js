@@ -13,7 +13,7 @@ const endowmentEl = document.getElementById('endowment');
 const resultEl = document.getElementById('result');
 
 function show(id) {
-  [registerCard, waitCard, contribCard, resultCard].forEach(el => el.style.display = 'none');
+  [registerCard, waitCard, contribCard, resultCard, pendingCard].forEach(el => el.style.display = 'none');
   id.style.display = 'block';
 }
 
@@ -23,12 +23,18 @@ document.getElementById('register').addEventListener('click', () => {
   show(waitCard);
 });
 
+// Update display when slider moves
+document.getElementById('amount').addEventListener('input', (e) => {
+  document.getElementById('amount-value').textContent = e.target.value;
+});
+
 document.getElementById('submit').addEventListener('click', () => {
   const submitBtn = document.getElementById('submit');
-  if (submitBtn.disabled) return; // ignore double-clicks
+  if (submitBtn.disabled) return;
   const val = parseInt(document.getElementById('amount').value, 10);
   socket.emit('player:contribute', { amount: val });
-  submitBtn.disabled = true; // lock for this round
+  submitBtn.disabled = true; // prevent double-submits
+  submitBtn.textContent = 'Submitting…';
 });
 
 
@@ -40,6 +46,7 @@ socket.on('player:hello', ({ phase: p, baseEndowment: b }) => {
   const submitBtn = document.getElementById('submit');
   if (submitBtn) submitBtn.disabled = false;
   document.getElementById('amount').value = 0;
+  document.getElementById('amount-value').textContent = '0';
   resultEl.innerHTML = '';
 
   // Optional: if you want to keep students past the name step after resets:
@@ -54,6 +61,7 @@ socket.on('player:hello', ({ phase: p, baseEndowment: b }) => {
 socket.on('round:start', ({ baseEndowment: b }) => {
   baseEndowment = b; endowmentEl.textContent = b;
   document.getElementById('amount').value = 0;
+  document.getElementById('amount-value').textContent = '0';
   resultEl.innerHTML = '';
   const submitBtn = document.getElementById('submit');
   submitBtn.disabled = false;
@@ -71,20 +79,6 @@ socket.on('round:result', ({ groupSum, doubled, share, yourContribution, yourPay
     <p><strong>Your payout:</strong> <span style="font-size:1.2em">${yourPayout.toFixed(2)}</span></p>
   `;
   show(resultCard);
-});
-
-function show(id) {
-  [registerCard, waitCard, contribCard, resultCard, pendingCard].forEach(el => el.style.display = 'none');
-  id.style.display = 'block';
-}
-
-document.getElementById('submit').addEventListener('click', () => {
-  const submitBtn = document.getElementById('submit');
-  if (submitBtn.disabled) return;
-  const val = parseInt(document.getElementById('amount').value, 10);
-  socket.emit('player:contribute', { amount: val });
-  submitBtn.disabled = true; // prevent double-submits
-  submitBtn.textContent = 'Submitting…';
 });
 
 // ✅ when the server ACKs, switch to pending screen

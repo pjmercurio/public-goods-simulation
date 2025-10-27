@@ -12,8 +12,8 @@
       <h1>Join the Game</h1>
 
       <div class="card" id="register-card">
-        <h2>Step 1: Enter your name (optional)</h2>
-        <input id="name" placeholder="(Optional) First name or alias" />
+        <h2>Step 1: Enter your name</h2>
+        <input id="name" placeholder="Your name here..." />
         <button id="register" class="btn">Join Lobby</button>
       </div>
 
@@ -24,14 +24,19 @@
 
       <div class="card" id="contrib-card" style="display:none">
         <h2>Step 2: Choose your contribution</h2>
-        <p>You have <strong id="endowment">15</strong>. Enter an amount (0–15) to contribute to your group pot. The pot will be doubled and shared equally.</p>
-        <input id="amount" type="number" min="0" max="15" value="0" />
+        <p>You have <strong id="endowment">$15</strong>. Choose an amount (0–15) to contribute to your group pot. The pot will be doubled and shared equally.</p>
+        <div style="margin: 12px 0;">
+          <input id="amount" type="range" min="0" max="15" value="0" style="width: 100%;" />
+          <div style="text-align: center; font-size: 18px; font-weight: bold; margin-top: 8px;">
+            <span id="amount-value">0</span>
+          </div>
+        </div>
         <button id="submit" class="btn">Submit</button>
       </div>
 
       <div class="card" id="pending-card" style="display:none">
         <h2>Submission recorded!</h2>
-        <p>Please wait for the instructor to end the round to see results.</p>
+        <p>Please wait for Paul & Tess to end the round to see results.</p>
       </div>
 
       <div class="card" id="result-card" style="display:none">
