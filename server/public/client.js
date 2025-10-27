@@ -23,23 +23,44 @@ document.getElementById('register').addEventListener('click', () => {
 });
 
 document.getElementById('submit').addEventListener('click', () => {
+  const submitBtn = document.getElementById('submit');
+  if (submitBtn.disabled) return; // ignore double-clicks
   const val = parseInt(document.getElementById('amount').value, 10);
   socket.emit('player:contribute', { amount: val });
-  // lock UI
-  document.getElementById('submit').disabled = true;
+  submitBtn.disabled = true; // lock for this round
 });
+
+
 
 socket.on('player:hello', ({ phase: p, baseEndowment: b }) => {
   phase = p; baseEndowment = b; endowmentEl.textContent = b;
-  if (phase === 'lobby') show(registerCard);
+
+  // ✅ ensure clean state between rounds/resets
+  const submitBtn = document.getElementById('submit');
+  if (submitBtn) submitBtn.disabled = false;
+  document.getElementById('amount').value = 0;
+  resultEl.innerHTML = '';
+
+  // Optional: if you want to keep students past the name step after resets:
+  // show(waitCard);  // instead of show(registerCard) below
+
+  if (phase === 'lobby') show(registerCard);   // or show(waitCard) if you prefer
   else if (phase === 'contribute') show(contribCard);
   else if (phase === 'results') show(resultCard);
 });
 
+
 socket.on('round:start', ({ groupId, baseEndowment: b }) => {
   baseEndowment = b; endowmentEl.textContent = b;
+
+  // Reset UI for a new round
+  const submitBtn = document.getElementById('submit');
+  submitBtn.disabled = false;             // <— re-enable
+  document.getElementById('amount').value = 0;
+  resultEl.innerHTML = '';
   show(contribCard);
 });
+
 
 socket.on('round:result', ({ groupSum, doubled, share, yourContribution, yourPayout }) => {
   resultEl.innerHTML = `

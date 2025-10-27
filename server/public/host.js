@@ -7,6 +7,8 @@ const resultsEl = document.getElementById('results');
 const joinUrlEl = document.getElementById('join-url');
 const startBtn = document.getElementById('start-btn');
 const resetBtn = document.getElementById('reset-btn');
+const endBtn = document.getElementById('end-btn');
+
 
 // Build join URL from current origin
 const joinUrl = `${location.origin}/join.html`;
@@ -25,6 +27,8 @@ resetBtn.addEventListener('click', () => {
   resultsEl.innerHTML = '';
   socket.emit('host:reset');
 });
+endBtn.addEventListener('click', () => socket.emit('host:end'));
+
 
 socket.on('host:hello', ({ phase }) => {
   // nothing extra for now
@@ -60,6 +64,80 @@ socket.on('group:finished', ({ groupId, groupSum, doubled, share, members }) => 
     `).join('');
   }
 });
+
+socket.on('host:end', () => {
+  if (!socket.rooms.has('hosts')) return;
+  if (gamePhase !== 'contribute') return;
+
+  // Compute and send results for every group once, now.
+  for (const [gid, g] of groups.entries()) {
+    if (g.finished) continue;
+
+    const memberIds = g.memberIds;
+    const contribs = memberIds.map(id => players.get(id)?.contribution ?? 0);
+    const groupSum = contribs.reduce((s, v) => s + v, 0);
+    const groupSize = memberIds.length;
+    const doubled = groupSum * multiplier;
+    const share = groupSize > 0 ? doubled / groupSize : 0;
+
+    memberIds.forEach(id => {
+      const pp = players.get(id);
+      if (!pp) return;
+      // If someone never submitted, treat as 0 contribution:
+      const c = (pp.contribution ?? 0);
+      pp.payout = (baseEndowment - c) + share;
+
+      io.to(id).emit('round:result', {
+        groupId: gid,
+        groupSum,
+        doubled,
+        share,
+        yourContribution: c,
+        yourPayout: pp.payout
+      });
+    });
+
+    g.finished = true;
+
+    io.to('hosts').emit('group:finished', {
+      groupId: gid,
+      groupSum, doubled, share,
+      members: memberIds.map(id => ({
+        id,
+        name: players.get(id)?.name || null,
+        contribution: players.get(id)?.contribution ?? 0,
+        payout: players.get(id)?.payout ?? null
+      }))
+    });
+  }
+
+  gamePhase = 'results';
+  io.to('hosts').emit('round:all_finished', { groups: summaryGroups(true) });
+});
+
+
+socket.on('player:contribute', ({ amount }) => {
+  const p = players.get(socket.id);
+  if (!p || gamePhase !== 'contribute') return;
+
+  let a = parseInt(amount, 10);
+  if (isNaN(a) || a < 0) a = 0;
+  if (a > baseEndowment) a = baseEndowment;
+  p.contribution = a;
+
+  const g = groups.get(p.groupId);
+  if (g) {
+    const received = g.memberIds.filter(id => players.get(id)?.contribution !== null).length;
+    const total = g.memberIds.length;
+
+    // notify host on progress
+    io.to('hosts').emit('group:update', { groupId: p.groupId, received, total });
+
+    // mark "ready" once group has all contributions
+    if (received === total) g.ready = true; // NEW FLAG
+  }
+});
+
 
 socket.on('round:all_finished', ({ groups }) => {
   resultsEl.innerHTML = `
