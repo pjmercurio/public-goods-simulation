@@ -7,6 +7,7 @@ let baseEndowment = 15;
 const registerCard = document.getElementById('register-card');
 const waitCard = document.getElementById('wait-card');
 const contribCard = document.getElementById('contrib-card');
+const pendingCard = document.getElementById('pending-card');
 const resultCard = document.getElementById('result-card');
 const endowmentEl = document.getElementById('endowment');
 const resultEl = document.getElementById('result');
@@ -50,14 +51,13 @@ socket.on('player:hello', ({ phase: p, baseEndowment: b }) => {
 });
 
 
-socket.on('round:start', ({ groupId, baseEndowment: b }) => {
+socket.on('round:start', ({ baseEndowment: b }) => {
   baseEndowment = b; endowmentEl.textContent = b;
-
-  // Reset UI for a new round
-  const submitBtn = document.getElementById('submit');
-  submitBtn.disabled = false;             // <— re-enable
   document.getElementById('amount').value = 0;
   resultEl.innerHTML = '';
+  const submitBtn = document.getElementById('submit');
+  submitBtn.disabled = false;
+  submitBtn.textContent = 'Submit';
   show(contribCard);
 });
 
@@ -72,3 +72,24 @@ socket.on('round:result', ({ groupSum, doubled, share, yourContribution, yourPay
   `;
   show(resultCard);
 });
+
+function show(id) {
+  [registerCard, waitCard, contribCard, resultCard, pendingCard].forEach(el => el.style.display = 'none');
+  id.style.display = 'block';
+}
+
+document.getElementById('submit').addEventListener('click', () => {
+  const submitBtn = document.getElementById('submit');
+  if (submitBtn.disabled) return;
+  const val = parseInt(document.getElementById('amount').value, 10);
+  socket.emit('player:contribute', { amount: val });
+  submitBtn.disabled = true; // prevent double-submits
+  submitBtn.textContent = 'Submitting…';
+});
+
+// ✅ when the server ACKs, switch to pending screen
+socket.on('player:submitted', ({ ok }) => {
+  if (!ok) return;
+  show(pendingCard);
+});
+
