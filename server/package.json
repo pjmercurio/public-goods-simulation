@@ -1,0 +1,14 @@
+{
+  "name": "pgg-classroom",
+  "version": "1.0.0",
+  "description": "Five-minute classroom public goods game (Aswani et al. inspired).",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}

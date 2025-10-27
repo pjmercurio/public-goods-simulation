@@ -1,0 +1,42 @@
+
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Join – Public Goods Game</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Join the Game</h1>
+
+      <div class="card" id="register-card">
+        <h2>Step 1: Enter your name (optional)</h2>
+        <input id="name" placeholder="(Optional) First name or alias" />
+        <button id="register" class="btn">Join Lobby</button>
+      </div>
+
+      <div class="card" id="wait-card" style="display:none">
+        <h2>Waiting for the round to start…</h2>
+        <p>Keep this page open.</p>
+      </div>
+
+      <div class="card" id="contrib-card" style="display:none">
+        <h2>Step 2: Choose your contribution</h2>
+        <p>You have <strong id="endowment">15</strong>. Enter an amount (0–15) to contribute to your group pot. The pot will be doubled and shared equally.</p>
+        <input id="amount" type="number" min="0" max="15" value="0" />
+        <button id="submit" class="btn">Submit</button>
+      </div>
+
+      <div class="card" id="result-card" style="display:none">
+        <h2>Round Result</h2>
+        <div id="result"></div>
+        <p class="muted">You can close this page, or wait for the next round if the host starts one.</p>
+      </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client.js"></script>
+  </body>
+</html>

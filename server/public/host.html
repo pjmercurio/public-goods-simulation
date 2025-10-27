@@ -1,0 +1,43 @@
+
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Host – Public Goods Game</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Host Dashboard</h1>
+      <div class="grid">
+        <div class="card">
+          <h2>Join QR</h2>
+          <div id="qr"></div>
+          <p id="join-url"></p>
+        </div>
+        <div class="card">
+          <h2>Lobby</h2>
+          <p><strong>Players connected:</strong> <span id="player-count">0</span></p>
+          <button id="start-btn" class="btn">Start Round</button>
+          <button id="reset-btn" class="btn danger">Reset</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Groups</h2>
+        <div id="groups"></div>
+      </div>
+
+      <div class="card">
+        <h2>Results</h2>
+        <div id="results"></div>
+      </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- <script src="qrcode.min.js"></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="host.js"></script>
+  </body>
+</html>
