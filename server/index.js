@@ -58,12 +58,6 @@ function formGroups(size=4) {
   }
 }
 
-function allGroupsFinished() {
-  for (const g of groups.values()) {
-    if (!g.finished) return false;
-  }
-  return true;
-}
 
 io.on('connection', (socket) => {
   const role = socket.handshake.query.role || 'player';
@@ -107,68 +101,89 @@ io.on('connection', (socket) => {
     io.to('hosts').emit('round:started', { groups: summaryGroups() });
   });
 
-  socket.on('player:contribute', ({ amount }) => {
-    const p = players.get(socket.id);
-    if (!p || gamePhase !== 'contribute') return;
-    let a = parseInt(amount, 10);
-    if (isNaN(a) || a < 0) a = 0;
-    if (a > baseEndowment) a = baseEndowment;
-    p.contribution = a;
+  // Host clicks "End Round" to reveal results (works even if some never submitted)
+socket.on('host:end', () => {
+  if (!socket.rooms.has('hosts')) return;
+  if (gamePhase !== 'contribute') return;
 
-    // check if group complete
-    const g = groups.get(p.groupId);
-    if (g) {
-      const allDone = g.memberIds.every(id => {
-        const pp = players.get(id);
-        return pp && pp.contribution !== null;
+  for (const [gid, g] of groups.entries()) {
+    if (g.finished) continue;
+
+    const memberIds = g.memberIds;
+    const contribs = memberIds.map(id => {
+      const pp = players.get(id);
+      return (pp && pp.contribution != null) ? pp.contribution : 0; // missing => 0
+    });
+
+    const groupSum = contribs.reduce((s,v)=>s+v,0);
+    const n = memberIds.length;
+    const doubled = groupSum * multiplier;
+    const share = n > 0 ? doubled / n : 0;
+
+    memberIds.forEach((id, idx) => {
+      const pp = players.get(id);
+      if (!pp) return;
+      const c = (pp.contribution != null) ? pp.contribution : 0;
+      pp.payout = (baseEndowment - c) + share;
+
+      io.to(id).emit('round:result', {
+        groupId: gid,
+        groupSum,
+        doubled,
+        share,
+        yourContribution: c,
+        yourPayout: pp.payout
       });
-      if (allDone) {
-        // compute payouts
-        const contribs = g.memberIds.map(id => players.get(id)?.contribution || 0);
-        const groupSum = contribs.reduce((s,v)=>s+v,0);
-        const groupSize = g.memberIds.length;
-        const doubled = groupSum * multiplier;
-        const share = doubled / groupSize;
+    });
 
-        g.memberIds.forEach(id => {
-          const pp = players.get(id);
-          if (pp) {
-            pp.payout = (baseEndowment - pp.contribution) + share;
-            io.to(id).emit('round:result', {
-              groupId: p.groupId,
-              groupSum,
-              doubled,
-              share,
-              yourContribution: pp.contribution,
-              yourPayout: pp.payout
-            });
-          }
-        });
-        g.finished = true;
-        io.to('hosts').emit('group:finished', {
-          groupId: p.groupId,
-          groupSum, doubled, share,
-          members: g.memberIds.map(id => ({
-            id, name: players.get(id)?.name || null,
-            contribution: players.get(id)?.contribution ?? null,
-            payout: players.get(id)?.payout ?? null
-          }))
-        });
+    g.finished = true;
 
-        if (allGroupsFinished()) {
-          gamePhase = 'results';
-          io.to('hosts').emit('round:all_finished', { groups: summaryGroups(true) });
-        }
-      } else {
-        // update host on partial progress
-        io.to('hosts').emit('group:update', {
-          groupId: p.groupId,
-          received: g.memberIds.filter(id => players.get(id)?.contribution !== null).length,
-          total: g.memberIds.length
-        });
-      }
-    }
-  });
+    io.to('hosts').emit('group:finished', {
+      groupId: gid,
+      groupSum, doubled, share,
+      members: memberIds.map(id => ({
+        id,
+        name: players.get(id)?.name || null,
+        contribution: players.get(id)?.contribution ?? 0,
+        payout: players.get(id)?.payout ?? null
+      }))
+    });
+  }
+
+  gamePhase = 'results';
+  io.to('hosts').emit('round:all_finished', { groups: summaryGroups(true) });
+});
+
+
+  // Replace your entire player:contribute handler with THIS:
+socket.on('player:contribute', ({ amount }) => {
+  const p = players.get(socket.id);
+  if (!p || gamePhase !== 'contribute') return;
+
+  let a = parseInt(amount, 10);
+  if (isNaN(a) || a < 0) a = 0;
+  if (a > baseEndowment) a = baseEndowment;
+
+  // lock first submission; ignore edits after first submit
+  if (p.contribution == null) {
+    p.contribution = a;
+  }
+
+  // ✅ immediate ACK to the player so the UI can show "Submission recorded"
+  io.to(socket.id).emit('player:submitted', { ok: true });
+
+  // progress update for host (no results yet)
+  const g = groups.get(p.groupId);
+  if (g) {
+    const received = g.memberIds.filter(id => players.get(id)?.contribution != null).length;
+    const total = g.memberIds.length;
+    io.to('hosts').emit('group:update', { groupId: p.groupId, received, total });
+  }
+
+  // ❌ Do NOT compute payouts, set g.finished, or emit round:result here.
+  // ❌ Do NOT call round:all_finished here.
+});
+
 
   socket.on('host:reset', () => {
     if (!socket.rooms.has('hosts')) return;
