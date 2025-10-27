@@ -69,22 +69,24 @@ socket.on('host:end', () => {
   if (!socket.rooms.has('hosts')) return;
   if (gamePhase !== 'contribute') return;
 
-  // Compute and send results for every group once, now.
   for (const [gid, g] of groups.entries()) {
     if (g.finished) continue;
 
     const memberIds = g.memberIds;
-    const contribs = memberIds.map(id => players.get(id)?.contribution ?? 0);
-    const groupSum = contribs.reduce((s, v) => s + v, 0);
+    const contribs = memberIds.map(id => {
+      const pp = players.get(id);
+      return (pp && pp.contribution != null) ? pp.contribution : 0; // <- treat missing as 0
+    });
+
+    const groupSum = contribs.reduce((s,v)=>s+v,0);
     const groupSize = memberIds.length;
     const doubled = groupSum * multiplier;
     const share = groupSize > 0 ? doubled / groupSize : 0;
 
-    memberIds.forEach(id => {
+    memberIds.forEach((id, idx) => {
       const pp = players.get(id);
-      if (!pp) return;
-      // If someone never submitted, treat as 0 contribution:
-      const c = (pp.contribution ?? 0);
+      if (!pp) return; // disconnected student won't receive the emit, that's fine
+      const c = (pp.contribution != null) ? pp.contribution : 0;
       pp.payout = (baseEndowment - c) + share;
 
       io.to(id).emit('round:result', {
@@ -114,6 +116,7 @@ socket.on('host:end', () => {
   gamePhase = 'results';
   io.to('hosts').emit('round:all_finished', { groups: summaryGroups(true) });
 });
+
 
 
 socket.on('player:contribute', ({ amount }) => {
