@@ -11,15 +11,28 @@ const pendingCard = document.getElementById('pending-card');
 const resultCard = document.getElementById('result-card');
 const endowmentEl = document.getElementById('endowment');
 const resultEl = document.getElementById('result');
+const playerNameDisplay = document.getElementById('player-name-display');
 
 function show(id) {
   [registerCard, waitCard, contribCard, resultCard, pendingCard].forEach(el => el.style.display = 'none');
   id.style.display = 'block';
 }
 
+function setAndShowPlayerName(name) {
+  const trimmed = (name || '').trim();
+  if (trimmed) {
+    try { sessionStorage.setItem('playerName', trimmed); } catch (e) {}
+    if (playerNameDisplay) {
+      playerNameDisplay.textContent = trimmed;
+      playerNameDisplay.style.display = 'block';
+    }
+  }
+}
+
 document.getElementById('register').addEventListener('click', () => {
   const name = document.getElementById('name').value.trim();
   socket.emit('player:register', { name });
+  setAndShowPlayerName(name);
   show(waitCard);
 });
 
@@ -49,6 +62,12 @@ socket.on('player:hello', ({ phase: p, baseEndowment: b }) => {
   document.getElementById('amount-value').textContent = '0';
   resultEl.innerHTML = '';
 
+  // show stored name if available (helps across reloads)
+  try {
+    const stored = sessionStorage.getItem('playerName');
+    if (stored) setAndShowPlayerName(stored);
+  } catch (e) {}
+
   // Optional: if you want to keep students past the name step after resets:
   // show(waitCard);  // instead of show(registerCard) below
 
@@ -74,7 +93,6 @@ socket.on('round:result', ({ groupSum, doubled, share, yourContribution, yourPay
   resultEl.innerHTML = `
     <p><strong>Your contribution:</strong> ${yourContribution}</p>
     <p><strong>Group total contribution:</strong> ${groupSum}</p>
-    <p><strong>Doubled pot:</strong> ${doubled}</p>
     <p><strong>Each member's share:</strong> ${share.toFixed(2)}</p>
     <p><strong>Your payout:</strong> <span style="font-size:1.2em">${yourPayout.toFixed(2)}</span></p>
   `;
