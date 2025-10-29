@@ -24,6 +24,10 @@ let gamePhase = 'lobby'; // 'lobby' | 'contribute' | 'results'
 let baseEndowment = 15;
 let multiplier = 2;
 
+let roundNumber = 0;
+let summariesByRound = {}; // { [roundNumber]: { round, groups: [...] } }
+
+
 // Utility: shuffle array
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i--) {
@@ -91,6 +95,7 @@ io.on('connection', (socket) => {
     }
     formGroups(4);
     gamePhase = 'contribute';
+    roundNumber += 1;
     // Notify each player of their group
     for (const [gid, g] of groups.entries()) {
       g.started = true;
@@ -101,58 +106,91 @@ io.on('connection', (socket) => {
     io.to('hosts').emit('round:started', { groups: summaryGroups() });
   });
 
+  socket.on('host:start_again', ({ keepGroups }) => {
+    if (!socket.rooms.has('hosts')) return;
+    if (!keepGroups) formGroups(4);               // else reuse
+    // reset per-player contributions
+    for (const id of players.keys()) players.get(id).contribution = null;
+    for (const g of groups.values()) g.finished = false;
+  
+    gamePhase = 'contribute';
+    roundNumber += 1;
+    for (const [gid, g] of groups.entries()) {
+      for (const sid of g.memberIds) io.to(sid).emit('round:start', { groupId: gid, baseEndowment, multiplier });
+    }
+    io.to('hosts').emit('round:started', { groups: summaryGroups() });
+  });
+  
+
   // Host clicks "End Round" to reveal results (works even if some never submitted)
-socket.on('host:end', () => {
-  if (!socket.rooms.has('hosts')) return;
-  if (gamePhase !== 'contribute') return;
-
-  for (const [gid, g] of groups.entries()) {
-    if (g.finished) continue;
-
-    const memberIds = g.memberIds;
-    const contribs = memberIds.map(id => {
-      const pp = players.get(id);
-      return (pp && pp.contribution != null) ? pp.contribution : 0; // missing => 0
-    });
-
-    const groupSum = contribs.reduce((s,v)=>s+v,0);
-    const n = memberIds.length;
-    const doubled = groupSum * multiplier;
-    const share = n > 0 ? doubled / n : 0;
-
-    memberIds.forEach((id, idx) => {
-      const pp = players.get(id);
-      if (!pp) return;
-      const c = (pp.contribution != null) ? pp.contribution : 0;
-      pp.payout = (baseEndowment - c) + share;
-
-      io.to(id).emit('round:result', {
-        groupId: gid,
-        groupSum,
-        doubled,
-        share,
-        yourContribution: c,
-        yourPayout: pp.payout
+  socket.on('host:end', () => {
+    if (!socket.rooms.has('hosts')) return;
+    if (gamePhase !== 'contribute') return;
+  
+    const finishedGroupsPayload = []; // we'll store a clean summary for this round
+  
+    for (const [gid, g] of groups.entries()) {
+      if (g.finished) continue;
+  
+      const memberIds = g.memberIds;
+      const contribs = memberIds.map(id => {
+        const pp = players.get(id);
+        return (pp && pp.contribution != null) ? pp.contribution : 0; // missing => 0
       });
-    });
-
-    g.finished = true;
-
-    io.to('hosts').emit('group:finished', {
-      groupId: gid,
-      groupSum, doubled, share,
-      members: memberIds.map(id => ({
+  
+      const groupSum = contribs.reduce((s,v)=>s+v,0);
+      const n = memberIds.length;
+      const doubled = groupSum * multiplier;
+      const share = n > 0 ? doubled / n : 0;
+  
+      // per-player payouts + result emit
+      memberIds.forEach((id, idx) => {
+        const pp = players.get(id);
+        if (!pp) return;
+        const c = (pp.contribution != null) ? pp.contribution : 0;
+        pp.payout = (baseEndowment - c) + share;
+  
+        io.to(id).emit('round:result', {
+          groupId: gid,
+          groupSum,
+          doubled,
+          share,
+          yourContribution: c,
+          yourPayout: pp.payout
+        });
+      });
+  
+      g.finished = true;
+  
+      // host per-group “finished” card
+      const members = memberIds.map(id => ({
         id,
         name: players.get(id)?.name || null,
         contribution: players.get(id)?.contribution ?? 0,
-        payout: players.get(id)?.payout ?? null
-      }))
+        payout: players.get(id)?.payout ?? 0
+      }));
+      io.to('hosts').emit('group:finished', { groupId: gid, groupSum, doubled, share, members });
+  
+      // collect a clean group summary for this round’s history
+      finishedGroupsPayload.push({ groupId: gid, groupSum, doubled, share, members });
+    }
+  
+    // Store this round’s summary
+    const summary = { round: roundNumber, groups: finishedGroupsPayload };
+    summariesByRound[roundNumber] = summary;
+  
+    gamePhase = 'results';
+  
+    // Include previous-round summary (if it exists) so host can compare
+    const previous = summariesByRound[roundNumber - 1] || null;
+  
+    io.to('hosts').emit('round:all_finished', {
+      round: roundNumber,
+      groups: summary.groups,
+      previous // null for Round 1; full object for Round 2+
     });
-  }
-
-  gamePhase = 'results';
-  io.to('hosts').emit('round:all_finished', { groups: summaryGroups(true) });
-});
+  });
+  
 
 
   // Replace your entire player:contribute handler with THIS:
