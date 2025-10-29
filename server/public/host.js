@@ -45,7 +45,18 @@ endBtn.addEventListener('click', () => socket.emit('host:end'));
 
 
 socket.on('host:hello', ({ phase }) => {
-  // nothing extra for now
+  // Set initial button visibility based on phase
+  if (phase === 'lobby') {
+    startBtn.style.display = 'inline-block';
+    endBtn.style.display = 'none';
+  } else if (phase === 'round') {
+    startBtn.style.display = 'none';
+    endBtn.style.display = 'inline-block';
+  } else {
+    // Finished or other states
+    startBtn.style.display = 'none';
+    endBtn.style.display = 'none';
+  }
 });
 
 socket.on('lobby:update', ({ count }) => {
@@ -55,6 +66,10 @@ socket.on('lobby:update', ({ count }) => {
 socket.on('round:started', ({ groups }) => {
   groupsEl.innerHTML = renderGroups(groups);
   resultsEl.innerHTML = '';
+  
+  // Hide start button and show end button when round starts
+  startBtn.style.display = 'none';
+  endBtn.style.display = 'inline-block';
 });
 
 socket.on('group:update', ({ groupId, received, total }) => {
@@ -127,9 +142,16 @@ socket.on('round:all_finished', ({ round, groups, previous }) => {
     }).join('')}
   `;
 
+  // Show start button and hide end button when round finishes
+  // (unless we're showing comparison results)
+  if (!previous || !Array.isArray(previous.groups)) {
+    startBtn.style.display = 'inline-block';
+    endBtn.style.display = 'none';
+  }
+
   // If there is a previous round, render a comparison block under it
 if (previous && Array.isArray(previous.groups)) {
-  // Hide buttons now that we're done
+  // Hide all buttons when both rounds are complete
   startBtn.style.display = 'none';
   start2Btn.style.display = 'none';
   endBtn.style.display = 'none';
